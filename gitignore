@@ -1,0 +1,15 @@
+mkdir CO3009_TrafficLight_STM32
+cd CO3009_TrafficLight_STM32
+
+cat << 'EOF' > .gitignore
+Debug/
+Release/
+*.o
+*.d
+*.elf
+*.map
+*.su
+.metadata/
+EOF
+
+mkdir -p Docs Report Core/Inc Core/Src
