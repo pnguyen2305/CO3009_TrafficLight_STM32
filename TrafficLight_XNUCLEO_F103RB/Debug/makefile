@@ -50,6 +50,9 @@ default.size.stdout \
 OBJDUMP_LIST += \
 TrafficLight_XNUCLEO_F103RB.list \
 
+OBJCOPY_HEX += \
+TrafficLight_XNUCLEO_F103RB.hex \
+
 OBJCOPY_BIN += \
 TrafficLight_XNUCLEO_F103RB.bin \
 
@@ -76,6 +79,11 @@ TrafficLight_XNUCLEO_F103RB.list: $(EXECUTABLES) makefile objects.list $(OPTIONA
 	@echo 'Finished building: $@'
 	@echo ' '
 
+TrafficLight_XNUCLEO_F103RB.hex: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objcopy  -O ihex $(EXECUTABLES) "TrafficLight_XNUCLEO_F103RB.hex"
+	@echo 'Finished building: $@'
+	@echo ' '
+
 TrafficLight_XNUCLEO_F103RB.bin: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	arm-none-eabi-objcopy  -O binary $(EXECUTABLES) "TrafficLight_XNUCLEO_F103RB.bin"
 	@echo 'Finished building: $@'
@@ -83,10 +91,10 @@ TrafficLight_XNUCLEO_F103RB.bin: $(EXECUTABLES) makefile objects.list $(OPTIONAL
 
 # Other Targets
 clean:
-	-$(RM) $(SIZE_OUTPUT)$(OBJDUMP_LIST)$(EXECUTABLES)$(OBJS)$(S_DEPS)$(S_UPPER_DEPS)$(C_DEPS)$(OBJCOPY_BIN) TrafficLight_XNUCLEO_F103RB.elf
+	-$(RM) $(OBJCOPY_HEX)$(SIZE_OUTPUT)$(OBJDUMP_LIST)$(EXECUTABLES)$(OBJS)$(S_DEPS)$(S_UPPER_DEPS)$(C_DEPS)$(OBJCOPY_BIN) TrafficLight_XNUCLEO_F103RB.elf
 	-@echo ' '
 
-secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST) $(OBJCOPY_BIN)
+secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST) $(OBJCOPY_HEX) $(OBJCOPY_BIN)
 
 fail-specified-linker-script-missing:
 	@echo 'Error: Cannot find the specified linker script. Check the linker settings in the build configuration.'
