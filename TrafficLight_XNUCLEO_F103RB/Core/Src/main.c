@@ -47,7 +47,9 @@ TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-
+uint8_t i2c_found_7bit[8] = {0};
+uint8_t i2c_found_8bit[8] = {0};
+int i2c_device_count = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -97,7 +99,16 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_Delay(100); 
+  n = 0;
+  for (uint8_t addr = 1; addr < 128; addr++) {
+      if (HAL_I2C_IsDeviceReady(&hi2c1, (uint16_t)(addr << 1), 1, 10) == HAL_OK) {
+          if (n < 8) {
+              found_8bit[n] = (uint8_t)(addr << 1);
+              found[n++] = addr; 
+          }
+      }
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
