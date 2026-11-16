@@ -22,7 +22,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "global.h"
+#include "software_timer.h"
+#include "traffic_light.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -99,53 +101,41 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  HAL_Delay(100); 
-  n = 0;
+  /* Fix I2C scan variable names from Phase 1 */
+  HAL_Delay(100);
+  i2c_device_count = 0;
   for (uint8_t addr = 1; addr < 128; addr++) {
       if (HAL_I2C_IsDeviceReady(&hi2c1, (uint16_t)(addr << 1), 1, 10) == HAL_OK) {
-          if (n < 8) {
-              found_8bit[n] = (uint8_t)(addr << 1);
-              found[n++] = addr; 
+          if (i2c_device_count < 8) {
+              i2c_found_8bit[i2c_device_count] = (uint8_t)(addr << 1);
+              i2c_found_7bit[i2c_device_count++] = addr;
           }
       }
   }
+
+  /* Phase 2 module initialization (Nguyen) */
+  global_init();
+  traffic_init();
+  HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      /* [Step 3.1 & 3.2 - Nguyen] Da test xong, tam dong comment de khong bi
-       * chan 8 giay boi HAL_Delay(2000) va xung dot dieu khien LED_PA5:
-       *
-       * for (int i = 0; i < 4; i++) {
-       *     HAL_GPIO_TogglePin(LED_PA5_GPIO_Port, LED_PA5_Pin);
-       *     HAL_GPIO_WritePin(TL1_A_GPIO_Port, TL1_A_Pin, (i >> 1) & 1);
-       *     HAL_GPIO_WritePin(TL1_B_GPIO_Port, TL1_B_Pin, i & 1);
-       *     HAL_Delay(2000);
-       * }
-       */
-
-      /* --- [Step 3.3 - Tung] TEST 4 NUT NHAN ROI (D7-D10) & NUT USER (PC13) ---
-       * Gia su ban dau kiem tra voi muc GPIO_PIN_RESET (logic 0):
-       * - Neu CHUA nhan nut ma LED_PA5 tat, va chi SANG KHI NHAN NUT:
-       *   -> Module nut nhan la ACTIVE-LOW (Nhan = 0 / GPIO_PIN_RESET).
-       * - Neu CHUA nhan nut ma LED_PA5 da sang (hoac nhan nut thi LED_PA5 tat):
-       *   -> Module nut nhan la ACTIVE-HIGH (Nhan = 1 / GPIO_PIN_SET).
-       */
+      /* Phase 1 hardware test code kept temporarily until scheduler.c is merged */
       if (HAL_GPIO_ReadPin(BTN_1_GPIO_Port, BTN_1_Pin) == GPIO_PIN_RESET ||
           HAL_GPIO_ReadPin(BTN_2_GPIO_Port, BTN_2_Pin) == GPIO_PIN_RESET ||
           HAL_GPIO_ReadPin(BTN_3_GPIO_Port, BTN_3_Pin) == GPIO_PIN_RESET ||
           HAL_GPIO_ReadPin(BTN_4_GPIO_Port, BTN_4_Pin) == GPIO_PIN_RESET)
       {
-          HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_SET);   // Bat LED PA5
+          HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_SET);
       }
       else
       {
-          HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_RESET); // Tat LED PA5
+          HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_RESET);
       }
 
-      /* Test rieng nut USER_BTN (PC13) hien thi len LED_PC9 */
       if (HAL_GPIO_ReadPin(USER_BTN_GPIO_Port, USER_BTN_Pin) == GPIO_PIN_RESET)
       {
           HAL_GPIO_WritePin(LED_PC9_GPIO_Port, LED_PC9_Pin, GPIO_PIN_SET);
@@ -347,7 +337,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_PA5_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : TL2_B_Pin TL1_A_Pin TL2_A_Pin TL1_B_Pin */
+  /*Configure GPIO pins : TL2_B_Pin TL1_A_Pin TL2_A_Pin TL1_B_Pin */
   GPIO_InitStruct.Pin = TL2_B_Pin|TL1_A_Pin|TL2_A_Pin|TL1_B_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
