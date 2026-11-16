@@ -25,6 +25,7 @@
 #include "global.h"
 #include "software_timer.h"
 #include "traffic_light.h"
+#include "button.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -113,9 +114,9 @@ int main(void)
       }
   }
 
-  /* Phase 2 module initialization (Nguyen) */
   global_init();
   traffic_init();
+  button_init();
   HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
 
@@ -124,7 +125,7 @@ int main(void)
   while (1)
   {
       /* Phase 1 hardware test code kept temporarily until scheduler.c is merged */
-      if (HAL_GPIO_ReadPin(BTN_1_GPIO_Port, BTN_1_Pin) == GPIO_PIN_RESET ||
+      /*if (HAL_GPIO_ReadPin(BTN_1_GPIO_Port, BTN_1_Pin) == GPIO_PIN_RESET ||
           HAL_GPIO_ReadPin(BTN_2_GPIO_Port, BTN_2_Pin) == GPIO_PIN_RESET ||
           HAL_GPIO_ReadPin(BTN_3_GPIO_Port, BTN_3_Pin) == GPIO_PIN_RESET ||
           HAL_GPIO_ReadPin(BTN_4_GPIO_Port, BTN_4_Pin) == GPIO_PIN_RESET)
@@ -143,6 +144,20 @@ int main(void)
       else
       {
           HAL_GPIO_WritePin(LED_PC9_GPIO_Port, LED_PC9_Pin, GPIO_PIN_RESET);
+      }*/
+
+      /* Step 5 Debounced Button Demo (Tung):
+       * - Single press BTN_MODE (BTN_1) toggles LED_PA5 once per press.
+       * - Long press (> 1s) BTN_MODIFY (BTN_2) toggles LED_PC9 every 250ms.
+       */
+      if (isButtonPressed(BTN_MODE))
+      {
+          HAL_GPIO_TogglePin(LED_PA5_GPIO_Port, LED_PA5_Pin);
+      }
+
+      if (isButtonLongPressed(BTN_MODIFY))
+      {
+          HAL_GPIO_TogglePin(LED_PC9_GPIO_Port, LED_PC9_Pin);
       }
     /* USER CODE END WHILE */
 
@@ -337,7 +352,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_PA5_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : TL2_B_Pin TL1_A_Pin TL2_A_Pin TL1_B_Pin */
+  /*Configure GPIO pin : TL2_B_Pin TL1_A_Pin TL2_A_Pin TL1_B_Pin */
   GPIO_InitStruct.Pin = TL2_B_Pin|TL1_A_Pin|TL2_A_Pin|TL1_B_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -366,7 +381,14 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM2)
+  {
+      timer_run();
+      button_reading();
+  }
+}
 /* USER CODE END 4 */
 
 /**
