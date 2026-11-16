@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "global.h"
+#include "scheduler.h"
 #include "software_timer.h"
 #include "traffic_light.h"
 /* USER CODE END Includes */
@@ -66,7 +67,20 @@ static void MX_TIM2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static void toggle_PA5(void)
+{
+    HAL_GPIO_TogglePin(LED_PA5_GPIO_Port, LED_PA5_Pin);
+}
 
+static void toggle_PC9(void)
+{
+    HAL_GPIO_TogglePin(LED_PC9_GPIO_Port, LED_PC9_Pin);
+}
+
+static void one_shot_test(void)
+{
+    HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_SET);
+}
 /* USER CODE END 0 */
 
 /**
@@ -113,9 +127,17 @@ int main(void)
       }
   }
 
-  /* Phase 2 module initialization (Nguyen) */
+  /* Phase 2 module initialization (Nguyen & Huy) */
+  SCH_Init();
   global_init();
   traffic_init();
+
+  /* Register 10 ms software timer tick & Step 4.2 multi-period + one-shot verification tasks */
+  SCH_Add_Task(timer_run,       0,   1); // 10 ms software timer update
+  SCH_Add_Task(toggle_PA5,      0,  50); // 500 ms periodic blink (50 ticks)
+  SCH_Add_Task(toggle_PC9,      0, 100); // 1000 ms periodic blink (100 ticks)
+  SCH_Add_Task(one_shot_test, 300,   0); // One-shot task: runs once after 3 s (300 ticks)
+
   HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
 
@@ -123,27 +145,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      /* Phase 1 hardware test code kept temporarily until scheduler.c is merged */
-      if (HAL_GPIO_ReadPin(BTN_1_GPIO_Port, BTN_1_Pin) == GPIO_PIN_RESET ||
-          HAL_GPIO_ReadPin(BTN_2_GPIO_Port, BTN_2_Pin) == GPIO_PIN_RESET ||
-          HAL_GPIO_ReadPin(BTN_3_GPIO_Port, BTN_3_Pin) == GPIO_PIN_RESET ||
-          HAL_GPIO_ReadPin(BTN_4_GPIO_Port, BTN_4_Pin) == GPIO_PIN_RESET)
-      {
-          HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_SET);
-      }
-      else
-      {
-          HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_RESET);
-      }
-
-      if (HAL_GPIO_ReadPin(USER_BTN_GPIO_Port, USER_BTN_Pin) == GPIO_PIN_RESET)
-      {
-          HAL_GPIO_WritePin(LED_PC9_GPIO_Port, LED_PC9_Pin, GPIO_PIN_SET);
-      }
-      else
-      {
-          HAL_GPIO_WritePin(LED_PC9_GPIO_Port, LED_PC9_Pin, GPIO_PIN_RESET);
-      }
+      SCH_Dispatch_Tasks();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -366,7 +368,13 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM2)
+  {
+    SCH_Update();
+  }
+}
 /* USER CODE END 4 */
 
 /**
