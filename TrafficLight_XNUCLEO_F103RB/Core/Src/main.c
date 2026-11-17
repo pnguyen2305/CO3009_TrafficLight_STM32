@@ -26,6 +26,7 @@
 #include "software_timer.h"
 #include "traffic_light.h"
 #include "button.h"
+#include "scheduler.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -67,7 +68,20 @@ static void MX_TIM2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static void toggle_PA5(void)
+{
+    HAL_GPIO_TogglePin(LED_PA5_GPIO_Port, LED_PA5_Pin);
+}
 
+static void toggle_PC9(void)
+{
+    HAL_GPIO_TogglePin(LED_PC9_GPIO_Port, LED_PC9_Pin);
+}
+
+static void one_shot_test(void)
+{
+    HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_SET);
+}
 /* USER CODE END 0 */
 
 /**
@@ -117,6 +131,13 @@ int main(void)
   global_init();
   traffic_init();
   button_init();
+
+  /* Step 4.2 Scheduler initialization & verification tasks (Huy) */
+  SCH_Init();
+  SCH_Add_Task(toggle_PA5,      0,  50); // 500 ms periodic blink (50 ticks)
+  SCH_Add_Task(toggle_PC9,      0, 100); // 1000 ms periodic blink (100 ticks)
+  SCH_Add_Task(one_shot_test, 300,   0); // One-shot task: runs once after 3 s (300 ticks)
+
   HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
 
@@ -159,6 +180,8 @@ int main(void)
       {
           HAL_GPIO_TogglePin(LED_PC9_GPIO_Port, LED_PC9_Pin);
       }
+
+      SCH_Dispatch_Tasks();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -352,7 +375,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_PA5_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : TL2_B_Pin TL1_A_Pin TL2_A_Pin TL1_B_Pin */
+  /*Configure GPIO pins : TL2_B_Pin TL1_A_Pin TL2_A_Pin TL1_B_Pin */
   GPIO_InitStruct.Pin = TL2_B_Pin|TL1_A_Pin|TL2_A_Pin|TL1_B_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -387,6 +410,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   {
       timer_run();
       button_reading();
+      SCH_Update();
   }
 }
 /* USER CODE END 4 */
