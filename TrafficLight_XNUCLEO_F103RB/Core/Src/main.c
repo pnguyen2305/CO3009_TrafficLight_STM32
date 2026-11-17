@@ -27,6 +27,7 @@
 #include "traffic_light.h"
 #include "button.h"
 #include "scheduler.h"
+#include "fsm_automatic.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -68,19 +69,23 @@ static void MX_TIM2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static void toggle_PA5(void)
-{
-    HAL_GPIO_TogglePin(LED_PA5_GPIO_Port, LED_PA5_Pin);
-}
-
-static void toggle_PC9(void)
+static void status_led_heartbeat(void)
 {
     HAL_GPIO_TogglePin(LED_PC9_GPIO_Port, LED_PC9_Pin);
 }
 
-static void one_shot_test(void)
+/* Temporary stub until Tung's fsm_manual.c and Huy's fsm_tuning.c are merged */
+static void mode_switch_test_stub(void)
 {
-    HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_SET);
+    if (status == MAN_INIT)
+    {
+        HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_SET);
+        if (isButtonPressed(BTN_MODE))
+        {
+            HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_RESET);
+            status = AUTO_INIT;
+        }
+    }
 }
 /* USER CODE END 0 */
 
@@ -116,7 +121,7 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  /* Fix I2C scan variable names from Phase 1 */
+  /* Phase 1 I2C scan */
   HAL_Delay(100);
   i2c_device_count = 0;
   for (uint8_t addr = 1; addr < 128; addr++) {
@@ -128,15 +133,18 @@ int main(void)
       }
   }
 
+  /* Phase 2 & Phase 3 module initialization */
   global_init();
   traffic_init();
   button_init();
 
-  /* Step 4.2 Scheduler initialization & verification tasks (Huy) */
+  /* Register staggered periodic tasks on the O(1) scheduler (1 tick = 10 ms) */
   SCH_Init();
-  SCH_Add_Task(toggle_PA5,      0,  50); // 500 ms periodic blink (50 ticks)
-  SCH_Add_Task(toggle_PC9,      0, 100); // 1000 ms periodic blink (100 ticks)
-  SCH_Add_Task(one_shot_test, 300,   0); // One-shot task: runs once after 3 s (300 ticks)
+  SCH_Add_Task(timer_run,             0,   1); /* 10 ms software timer tick */
+  SCH_Add_Task(button_reading,        0,   1); /* 10 ms debounced button scan */
+  SCH_Add_Task(fsm_automatic_run,     1,   1); /* 10 ms automatic traffic FSM */
+  SCH_Add_Task(mode_switch_test_stub, 2,   1); /* Temp stub until fsm_manual merged */
+  SCH_Add_Task(status_led_heartbeat,  5,  50); /* 500 ms heartbeat LED on PC9 */
 
   HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
@@ -145,42 +153,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      /* Phase 1 hardware test code kept temporarily until scheduler.c is merged */
-      /*if (HAL_GPIO_ReadPin(BTN_1_GPIO_Port, BTN_1_Pin) == GPIO_PIN_RESET ||
-          HAL_GPIO_ReadPin(BTN_2_GPIO_Port, BTN_2_Pin) == GPIO_PIN_RESET ||
-          HAL_GPIO_ReadPin(BTN_3_GPIO_Port, BTN_3_Pin) == GPIO_PIN_RESET ||
-          HAL_GPIO_ReadPin(BTN_4_GPIO_Port, BTN_4_Pin) == GPIO_PIN_RESET)
-      {
-          HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_SET);
-      }
-      else
-      {
-          HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_RESET);
-      }
-
-      if (HAL_GPIO_ReadPin(USER_BTN_GPIO_Port, USER_BTN_Pin) == GPIO_PIN_RESET)
-      {
-          HAL_GPIO_WritePin(LED_PC9_GPIO_Port, LED_PC9_Pin, GPIO_PIN_SET);
-      }
-      else
-      {
-          HAL_GPIO_WritePin(LED_PC9_GPIO_Port, LED_PC9_Pin, GPIO_PIN_RESET);
-      }*/
-
-      /* Step 5 Debounced Button Demo (Tung):
-       * - Single press BTN_MODE (BTN_1) toggles LED_PA5 once per press.
-       * - Long press (> 1s) BTN_MODIFY (BTN_2) toggles LED_PC9 every 250ms.
-       */
-      if (isButtonPressed(BTN_MODE))
-      {
-          HAL_GPIO_TogglePin(LED_PA5_GPIO_Port, LED_PA5_Pin);
-      }
-
-      if (isButtonLongPressed(BTN_MODIFY))
-      {
-          HAL_GPIO_TogglePin(LED_PC9_GPIO_Port, LED_PC9_Pin);
-      }
-
       SCH_Dispatch_Tasks();
     /* USER CODE END WHILE */
 
@@ -408,8 +380,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM2)
   {
-      timer_run();
-      button_reading();
       SCH_Update();
   }
 }
