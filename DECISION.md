@@ -57,3 +57,27 @@
 * **Decision:** Edit temporary variables (`draft_red`, `draft_amber`, `draft_green` in range `1..99` seconds) during `TUNE_RED`, `TUNE_AMBER`, `TUNE_GREEN` while blinking the corresponding LED color at `2 Hz` (250 ms toggle, inherited from Lab 3). Upon final confirmation in `TUNE_GREEN`, validate `draft_red == draft_green + draft_amber` before committing to `time_red`, `time_amber`, and `time_green`.
 * **Rationale:** Prevents asymmetric intersection timing where one road turns Green while the orthogonal road is still Green or Amber. If invalid values are entered, `fsm_tuning` displays `"ERR: R!=G+A"` on the LCD and retains the previous valid durations.
 * **Consequence:** `Huy` implements this validation in `fsm_tuning.c` and documents it in the report.
+
+## D08 — Explicit `TUNE_ERROR` State, Reject-on-Invalid, and Button Handling in Tuning Mode
+
+* **Date:** 18 Nov 2026
+* **Decision:**
+  1. Add one state `TUNE_ERROR` at the end of `SystemState_t` in `global.h`. When `BTN_SET` is pressed in `TUNE_GREEN` and `draft_red != draft_green + draft_amber`, `fsm_tuning` turns both roads off, starts `TIMER_TRAFFIC` for `1000 ms`, and enters `TUNE_ERROR`. When the timer expires it goes to `AUTO_INIT` with `time_red`, `time_amber`, `time_green` **unchanged** (reject, no auto-reconcile).
+  2. Editing limits: Red `1..99 s`, Amber and Green `1..98 s` (values are clamped, not wrapped). `BTN_MODIFY` = `+1`, `BTN_AUX` = `-1`, both auto-repeat every `250 ms` after a `1 s` hold via `isButtonLongPressed()`.
+  3. `BTN_MODE` in `TUNE_RED`, `TUNE_AMBER`, `TUNE_GREEN` discards all drafts and goes to `AUTO_INIT`. Buttons are ignored in `TUNE_ERROR`.
+  4. Each editing state is entered through one helper that turns all lights off and restarts `TIMER_BLINK_2HZ` (`250 ms`), so the new color always starts its 2 Hz blink cleanly.
+* **Rationale:**
+  1. A dedicated state lets the 1 s error display be non-blocking (no `HAL_Delay`) and lets `lcd_refresh_task()` show `"ERR: R!=G+A"` simply by checking `status == TUNE_ERROR`.
+  2. Rejecting is simpler to explain and test than auto-reconciling, and the system always runs with a set of durations that was validated before.
+  3. `isButtonPressed()` and `isButtonLongPressed()` are consume-on-read, so `fsm_tuning` combines them with bitwise `|` to read both flags every tick (`||` would skip the second read).
+* **Consequence:** `Tung`'s `lcd_refresh_task()` must handle `TUNE_ERROR`. `fsm_tuning.c` contains no `HAL_*` call. Host-side logic test (buttons and timers simulated tick by tick) confirms: 2 Hz blink (4 toggles per second), clamping at 1 and 99, valid commit, invalid reject with a 1 s `TUNE_ERROR`, and `BTN_MODE` abort.
+
+## D09 — Non-Blocking Split-Phase DHT20 Read Using a One-Shot Scheduler Task
+
+* **Date:** 18 Nov 2026
+* **Decision:** `dht20_read_task()` (period `200` ticks = `2 s`) only sends the 3-byte trigger command `0xAC 0x33 0x00` to address `0x38 << 1`, then calls `SCH_Add_Task(dht20_fetch_result, 10, 0)`. The one-shot task runs `100 ms` later, reads the 7-byte frame, checks the busy bit (bit 7 of the status byte) and the CRC-8 (polynomial `0x31`, init `0xFF`), and converts the two 20-bit raw values: `RH = raw / 2^20 * 100`, `T = raw / 2^20 * 200 - 50`.
+* **Rationale:**
+  1. The DHT20 needs about `80 ms` per measurement. Typical example code uses `HAL_Delay(80)`, which would freeze the super loop and make button presses and FSM timing late. Splitting the read into two short tasks keeps every task under about `1 ms` (a few bytes at `100 kHz`).
+  2. This reuses the one-shot (`PERIOD = 0`) feature of our own O(1) scheduler (D03) instead of adding a new timer.
+  3. If the sensor does not answer or a CRC check fails, the last good values are kept, and the driver retries `dht20_init()` on the next period, so unplugging the sensor never stops the traffic light.
+* **Consequence:** `main.c` needs `dht20_init(&hi2c1)` after the existing `100 ms` power-up delay and `SCH_Add_Task(dht20_read_task, 8, 200)`. At most one extra one-shot task is in the table at a time.
