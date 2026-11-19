@@ -27,9 +27,11 @@
 #include "traffic_light.h"
 #include "button.h"
 #include "scheduler.h"
-#include "fsm_automatic.h"
-#include "fsm_tuning.h"
 #include "dht20.h"
+#include "lcd.h"
+#include "fsm_automatic.h"
+#include "fsm_manual.h"
+#include "fsm_tuning.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -74,20 +76,6 @@ static void MX_TIM2_Init(void);
 static void status_led_heartbeat(void)
 {
     HAL_GPIO_TogglePin(LED_PC9_GPIO_Port, LED_PC9_Pin);
-}
-
-/* Temporary stub until Tung's fsm_manual.c and Huy's fsm_tuning.c are merged */
-static void mode_switch_test_stub(void)
-{
-    if (status == MAN_INIT)
-    {
-        HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_SET);
-        if (isButtonPressed(BTN_MODE))
-        {
-            HAL_GPIO_WritePin(LED_PA5_GPIO_Port, LED_PA5_Pin, GPIO_PIN_RESET);
-            status = AUTO_INIT;
-        }
-    }
 }
 /* USER CODE END 0 */
 
@@ -135,21 +123,23 @@ int main(void)
       }
   }
 
-  /* Phase 2 & Phase 3 module initialization */
+  /* Full system module initialization */
   global_init();
   traffic_init();
   button_init();
-  dht20_init(&hi2c1);   /* after HAL_Delay(100) above: DHT20 needs >= 100 ms after power-on */
+  dht20_init(&hi2c1);   /* DHT20 needs >= 100 ms after power-on */
+  lcd_init(&hi2c1);     /* Auto-detects 0x3E (Grove) or 0x27/0x3F (PCF8574) */
 
   /* Register staggered periodic tasks on the O(1) scheduler (1 tick = 10 ms) */
   SCH_Init();
-  SCH_Add_Task(timer_run,             0,   1); /* 10 ms software timer tick */
-  SCH_Add_Task(button_reading,        0,   1); /* 10 ms debounced button scan */
-  SCH_Add_Task(fsm_automatic_run,     1,   1); /* 10 ms automatic traffic FSM */
-  SCH_Add_Task(fsm_tuning_run,        1,   1); /* 10 ms tuning FSM */
-  SCH_Add_Task(mode_switch_test_stub, 2,   1); /* Temp stub until fsm_manual merged */
-  SCH_Add_Task(status_led_heartbeat,  5,  50); /* 500 ms heartbeat LED on PC9 */
-  SCH_Add_Task(dht20_read_task,       8, 200); /* 2 s DHT20 read (non-blocking) */
+  SCH_Add_Task(timer_run,            0,   1); /* 10 ms software timer tick */
+  SCH_Add_Task(button_reading,       0,   1); /* 10 ms debounced button scan */
+  SCH_Add_Task(fsm_automatic_run,    1,   1); /* 10 ms automatic traffic FSM */
+  SCH_Add_Task(fsm_manual_run,       1,   1); /* 10 ms manual traffic FSM */
+  SCH_Add_Task(fsm_tuning_run,       1,   1); /* 10 ms duration tuning FSM */
+  SCH_Add_Task(lcd_refresh_task,     3,  20); /* 200 ms non-blocking LCD refresh */
+  SCH_Add_Task(status_led_heartbeat, 5,  50); /* 500 ms heartbeat LED on PC9 */
+  SCH_Add_Task(dht20_read_task,      8, 200); /* 2000 ms DHT20 sensor read */
 
   HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
