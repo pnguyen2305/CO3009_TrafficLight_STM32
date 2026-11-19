@@ -54,7 +54,8 @@ typedef enum {
     TUNE_INIT,
     TUNE_RED,           /* Adjust Red duration (1..99s), blink Red LEDs at 2Hz */
     TUNE_AMBER,         /* Adjust Amber duration (1..98s), blink Amber LEDs at 2Hz */
-    TUNE_GREEN          /* Adjust Green duration (1..98s), blink Green LEDs at 2Hz */
+    TUNE_GREEN,         /* Adjust Green duration (1..98s), blink Green LEDs at 2Hz */
+    TUNE_ERROR          /* R != G + A on confirm: show error for 1s, keep old values, then AUTO_INIT */
 } SystemState_t;
 
 /* 6. Shared Global Variables (Defined in global.c) */

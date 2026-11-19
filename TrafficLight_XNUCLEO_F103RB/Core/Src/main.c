@@ -28,6 +28,8 @@
 #include "button.h"
 #include "scheduler.h"
 #include "fsm_automatic.h"
+#include "fsm_tuning.h"
+#include "dht20.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -137,14 +139,17 @@ int main(void)
   global_init();
   traffic_init();
   button_init();
+  dht20_init(&hi2c1);   /* after HAL_Delay(100) above: DHT20 needs >= 100 ms after power-on */
 
   /* Register staggered periodic tasks on the O(1) scheduler (1 tick = 10 ms) */
   SCH_Init();
   SCH_Add_Task(timer_run,             0,   1); /* 10 ms software timer tick */
   SCH_Add_Task(button_reading,        0,   1); /* 10 ms debounced button scan */
   SCH_Add_Task(fsm_automatic_run,     1,   1); /* 10 ms automatic traffic FSM */
+  SCH_Add_Task(fsm_tuning_run,        1,   1); /* 10 ms tuning FSM */
   SCH_Add_Task(mode_switch_test_stub, 2,   1); /* Temp stub until fsm_manual merged */
   SCH_Add_Task(status_led_heartbeat,  5,  50); /* 500 ms heartbeat LED on PC9 */
+  SCH_Add_Task(dht20_read_task,       8, 200); /* 2 s DHT20 read (non-blocking) */
 
   HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
